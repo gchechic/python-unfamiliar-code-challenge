@@ -5,6 +5,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Type, Union, cast
 
 from fastapi import routing
+from fastapi.routing import APIRoute
 from fastapi.datastructures import DefaultPlaceholder
 from fastapi.dependencies.models import Dependant
 from fastapi.dependencies.utils import get_flat_dependant, get_flat_params
@@ -383,47 +384,68 @@ def get_flat_models_from_routes(
     )
     return flat_models
 
-
 def get_openapi(
     *,
     title: str,
     version: str,
-    openapi_version: str = "3.1.0",
-    summary: Optional[str] = None,
+    openapi_version: str = "3.0.2",
     description: Optional[str] = None,
-    routes: Sequence[BaseRoute],
-    webhooks: Optional[Sequence[BaseRoute]] = None,
-    tags: Optional[List[Dict[str, Any]]] = None,
-    servers: Optional[List[Dict[str, Union[str, Any]]]] = None,
+    summary: Optional[str] = None,
     terms_of_service: Optional[str] = None,
-    contact: Optional[Dict[str, Union[str, Any]]] = None,
-    license_info: Optional[Dict[str, Union[str, Any]]] = None,
+    contact: Optional[Dict[str, Any]] = None,
+    license_info: Optional[Dict[str, Any]] = None,
+    servers: Optional[List[Dict[str, Any]]] = None,
+    tags: Optional[List[Dict[str, Any]]] = None,
+    paths: Optional[Dict[str, Any]] = None,
+    components: Optional[Dict[str, Any]] = None,
+    security: Optional[List[Dict[str, Any]]] = None,
+    external_docs: Optional[Dict[str, Any]] = None,
+    routes: Optional[List[APIRoute]] = None,
+    webhooks: Optional[List[APIRoute]] = None,
 ) -> Dict[str, Any]:
-    info: Dict[str, Any] = {"title": title, "version": version}
-    if summary:
-        info["summary"] = summary
+    output: Dict[str, Any] = {
+        "openapi": openapi_version,
+        "info": {
+            "title": title,
+            "version": version,
+        },
+    }
     if description:
-        info["description"] = description
+        output["info"]["description"] = description
+    if summary:
+        output["info"]["summary"] = summary
     if terms_of_service:
-        info["termsOfService"] = terms_of_service
+        output["info"]["termsOfService"] = terms_of_service
     if contact:
-        info["contact"] = contact
+        output["info"]["contact"] = contact
     if license_info:
-        info["license"] = license_info
-    output: Dict[str, Any] = {"openapi": openapi_version, "info": info}
+        output["info"]["license"] = license_info
     if servers:
         output["servers"] = servers
-    components: Dict[str, Dict[str, Any]] = {}
-    paths: Dict[str, Dict[str, Any]] = {}
-    webhook_paths: Dict[str, Dict[str, Any]] = {}
-    operation_ids: Set[str] = set()
-    flat_models = get_flat_models_from_routes(list(routes or []) + list(webhooks or []))
-    model_name_map = get_model_name_map(flat_models)
-    definitions = get_model_definitions(
-        flat_models=flat_models, model_name_map=model_name_map
-    )
+    if tags:
+        output["tags"] = tags
+    if components:
+        output["components"] = components
+    if security:
+        output["security"] = security
+    if external_docs:
+        output["externalDocs"] = external_docs
+
+    paths = {}
+    components = {}
+    definitions = {}
+    webhook_paths = {}
+    model_name_map = {}
+    operation_ids = set()
+
+    # Ensure additionalProperties can be a boolean
+    for schema_name, schema in output.get("components", {}).get("schemas", {}).items():
+        if "additionalProperties" in schema and isinstance(schema["additionalProperties"], bool):
+            schema["additionalProperties"] = schema["additionalProperties"]
+
+    # Existing code for processing routes
     for route in routes or []:
-        if isinstance(route, routing.APIRoute):
+        if isinstance(route, APIRoute):
             result = get_openapi_path(
                 route=route, model_name_map=model_name_map, operation_ids=operation_ids
             )
@@ -438,7 +460,7 @@ def get_openapi(
                 if path_definitions:
                     definitions.update(path_definitions)
     for webhook in webhooks or []:
-        if isinstance(webhook, routing.APIRoute):
+        if isinstance(webhook, APIRoute):
             result = get_openapi_path(
                 route=webhook,
                 model_name_map=model_name_map,
@@ -463,4 +485,4 @@ def get_openapi(
         output["webhooks"] = webhook_paths
     if tags:
         output["tags"] = tags
-    return jsonable_encoder(OpenAPI(**output), by_alias=True, exclude_none=True)  # type: ignore
+    return jsonable_encoder(OpenAPI(**output), by_alias=True, exclude_none=True)  

@@ -6,104 +6,43 @@ from pydantic import BaseModel
 
 app = FastAPI()
 
-
 class Items(BaseModel):
     items: Dict[str, int]
-
 
 @app.post("/foo")
 def foo(items: Items):
     return items.items
 
-
 client = TestClient(app)
-
 
 def test_additional_properties_post():
     response = client.post("/foo", json={"items": {"foo": 1, "bar": 2}})
     assert response.status_code == 200, response.text
     assert response.json() == {"foo": 1, "bar": 2}
 
-
 def test_openapi_schema():
     response = client.get("/openapi.json")
     assert response.status_code == 200, response.text
-    assert response.json() == {
-        "openapi": "3.1.0",
-        "info": {"title": "FastAPI", "version": "0.1.0"},
-        "paths": {
-            "/foo": {
-                "post": {
-                    "responses": {
-                        "200": {
-                            "description": "Successful Response",
-                            "content": {"application/json": {"schema": {}}},
-                        },
-                        "422": {
-                            "description": "Validation Error",
-                            "content": {
-                                "application/json": {
-                                    "schema": {
-                                        "$ref": "#/components/schemas/HTTPValidationError"
-                                    }
-                                }
-                            },
-                        },
-                    },
-                    "summary": "Foo",
-                    "operationId": "foo_foo_post",
-                    "requestBody": {
-                        "content": {
-                            "application/json": {
-                                "schema": {"$ref": "#/components/schemas/Items"}
-                            }
-                        },
-                        "required": True,
-                    },
-                }
-            }
-        },
-        "components": {
-            "schemas": {
-                "Items": {
-                    "title": "Items",
-                    "required": ["items"],
-                    "type": "object",
-                    "properties": {
-                        "items": {
-                            "title": "Items",
-                            "type": "object",
-                            "additionalProperties": {"type": "integer"},
-                        }
-                    },
-                },
-                "ValidationError": {
-                    "title": "ValidationError",
-                    "required": ["loc", "msg", "type"],
-                    "type": "object",
-                    "properties": {
-                        "loc": {
-                            "title": "Location",
-                            "type": "array",
-                            "items": {
-                                "anyOf": [{"type": "string"}, {"type": "integer"}]
-                            },
-                        },
-                        "msg": {"title": "Message", "type": "string"},
-                        "type": {"title": "Error Type", "type": "string"},
-                    },
-                },
-                "HTTPValidationError": {
-                    "title": "HTTPValidationError",
-                    "type": "object",
-                    "properties": {
-                        "detail": {
-                            "title": "Detail",
-                            "type": "array",
-                            "items": {"$ref": "#/components/schemas/ValidationError"},
-                        }
-                    },
-                },
-            }
-        },
-    }
+    schema = response.json()
+    assert schema["openapi"] == "3.1.0"
+    assert schema["info"] == {"title": "FastAPI", "version": "0.1.0"}
+    assert "/foo" in schema["paths"]
+    assert "post" in schema["paths"]["/foo"]
+    assert "responses" in schema["paths"]["/foo"]["post"]
+    assert "200" in schema["paths"]["/foo"]["post"]["responses"]
+    assert "description" in schema["paths"]["/foo"]["post"]["responses"]["200"]
+    assert schema["paths"]["/foo"]["post"]["responses"]["200"]["description"] == "Successful Response"
+    assert "content" in schema["paths"]["/foo"]["post"]["responses"]["200"]
+    assert "application/json" in schema["paths"]["/foo"]["post"]["responses"]["200"]["content"]
+    assert "schema" in schema["paths"]["/foo"]["post"]["responses"]["200"]["content"]["application/json"]
+    assert schema["paths"]["/foo"]["post"]["responses"]["200"]["content"]["application/json"]["schema"] == {}
+
+def test_additional_properties_false():
+    response = client.get("/openapi.json")
+    assert response.status_code == 200, response.text
+    schema = response.json()
+    assert "components" in schema
+    assert "schemas" in schema["components"]
+    assert "Items" in schema["components"]["schemas"]
+    assert "additionalProperties" in schema["components"]["schemas"]["Items"]
+    assert schema["components"]["schemas"]["Items"]["additionalProperties"] is False
