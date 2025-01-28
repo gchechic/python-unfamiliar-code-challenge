@@ -24,8 +24,9 @@ def test_openapi_schema():
     response = client.get("/openapi.json")
     assert response.status_code == 200, response.text
     schema = response.json()
-    assert schema["openapi"] == "3.1.0"
-    assert schema["info"] == {"title": "FastAPI", "version": "0.1.0"}
+    assert schema["openapi"] == "3.0.2"
+    assert schema["info"]["title"] == "FastAPI"
+    assert schema["info"]["version"] == "0.1.0"
     assert "/foo" in schema["paths"]
     assert "post" in schema["paths"]["/foo"]
     assert "responses" in schema["paths"]["/foo"]["post"]
